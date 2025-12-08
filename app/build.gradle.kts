@@ -38,7 +38,7 @@ android {
     }
     buildFeatures {
         compose = true
-        viewBinding; true
+        viewBinding = true
     }
 }
 
@@ -68,4 +68,8 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.0.1")
 // ViewBinding (Enable this in android { } block too)
     implementation("androidx.cardview:cardview:1.0.0")
+    implementation("com.google.android.material:material:1.11.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.9.1")
 }

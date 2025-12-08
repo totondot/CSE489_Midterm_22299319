@@ -18,8 +18,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         // Load the Map by default
-        loadFragment(MapFragment())
-
+        loadFragment(ListFragment())
         binding.bottomNavigation.setOnItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.nav_map -> loadFragment(MapFragment())

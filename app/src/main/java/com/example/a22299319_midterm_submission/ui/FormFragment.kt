@@ -35,18 +35,23 @@ class FormFragment : Fragment() {
     private val binding get() = _binding!!
     private var selectedImageFile: File? = null
 
-    // Image Picker
+    // 1. Image Picker Callback
     private val imagePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val uri = result.data?.data
             uri?.let {
                 binding.ivPreview.setImageURI(it)
-                selectedImageFile = uriToFile(it)
+                val file = uriToFile(it)
+                if (file != null) {
+                    selectedImageFile = file
+                } else {
+                    Toast.makeText(context, "Error processing image. Try another.", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
 
-    // Permission Launcher
+    // 2. Location Permission Callback
     private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
         if (isGranted) getCurrentLocation() else Toast.makeText(context, "Location permission denied", Toast.LENGTH_SHORT).show()
     }
@@ -82,14 +87,18 @@ class FormFragment : Fragment() {
     }
 
     private fun getCurrentLocation() {
-        val client = LocationServices.getFusedLocationProviderClient(requireContext())
-        client.lastLocation.addOnSuccessListener { location ->
-            if (location != null) {
-                binding.etLat.setText(location.latitude.toString())
-                binding.etLon.setText(location.longitude.toString())
-            } else {
-                Toast.makeText(context, "Could not get location", Toast.LENGTH_SHORT).show()
+        try {
+            val client = LocationServices.getFusedLocationProviderClient(requireContext())
+            client.lastLocation.addOnSuccessListener { location ->
+                if (location != null) {
+                    binding.etLat.setText(location.latitude.toString())
+                    binding.etLon.setText(location.longitude.toString())
+                } else {
+                    Toast.makeText(context, "Could not get location. Turn on GPS.", Toast.LENGTH_SHORT).show()
+                }
             }
+        } catch (e: SecurityException) {
+            Toast.makeText(context, "Permission error", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -106,12 +115,14 @@ class FormFragment : Fragment() {
         binding.progressBarForm.visibility = View.VISIBLE
         binding.btnSubmit.isEnabled = false
 
-        // Prepare Data for API
+        // Prepare Data for Retrofit
         val titlePart = title.toRequestBody("text/plain".toMediaTypeOrNull())
         val latPart = lat.toRequestBody("text/plain".toMediaTypeOrNull())
         val lonPart = lon.toRequestBody("text/plain".toMediaTypeOrNull())
 
-        val requestFile = selectedImageFile!!.asRequestBody("image/*".toMediaTypeOrNull())
+        // --- THIS WAS THE FIX ---
+        // We use .asRequestBody() for Files, and .toRequestBody() for Strings
+        val requestFile = selectedImageFile!!.asRequestBody("image/jpeg".toMediaTypeOrNull())
         val imagePart = MultipartBody.Part.createFormData("image", selectedImageFile!!.name, requestFile)
 
         val api = RetrofitClient.instance.create(ApiService::class.java)
@@ -121,31 +132,51 @@ class FormFragment : Fragment() {
                 binding.btnSubmit.isEnabled = true
                 if (response.isSuccessful) {
                     Toast.makeText(context, "Success!", Toast.LENGTH_LONG).show()
-                    // Clear form
                     binding.etTitle.setText("")
+                    binding.etLat.setText("")
+                    binding.etLon.setText("")
                     binding.ivPreview.setImageResource(android.R.drawable.ic_menu_camera)
+                    selectedImageFile = null
                 } else {
-                    Toast.makeText(context, "Failed: ${response.code()}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Failed: ${response.code()} ${response.message()}", Toast.LENGTH_SHORT).show()
                 }
             }
 
             override fun onFailure(call: Call<Any>, t: Throwable) {
                 binding.progressBarForm.visibility = View.GONE
                 binding.btnSubmit.isEnabled = true
-                Toast.makeText(context, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Network Error: ${t.message}", Toast.LENGTH_SHORT).show()
             }
         })
     }
 
-    // Helper to convert URI to File
-    private fun uriToFile(uri: Uri): File {
-        val inputStream = requireContext().contentResolver.openInputStream(uri)
-        val file = File(requireContext().cacheDir, "upload.jpg")
-        val outputStream = FileOutputStream(file)
-        inputStream?.copyTo(outputStream)
-        outputStream.close()
-        inputStream?.close()
-        return file
+    private fun uriToFile(uri: Uri): File? {
+        try {
+            val context = requireContext()
+            val inputStream = context.contentResolver.openInputStream(uri) ?: return null
+
+            val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream.close()
+
+            if (originalBitmap == null) return null
+
+            val ratio = originalBitmap.width.toDouble() / originalBitmap.height.toDouble()
+            val width = 800
+            val height = (width / ratio).toInt()
+            val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, width, height, true)
+
+            val file = File(context.cacheDir, "upload_image.jpg")
+            val outputStream = FileOutputStream(file)
+            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 60, outputStream)
+
+            outputStream.flush()
+            outputStream.close()
+
+            return file
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return null
+        }
     }
 
     override fun onDestroyView() {
