@@ -18,4 +18,5 @@ Student ID: 22299319
 2. Add Google Maps API Key in AndroidManifest
 3. Run on Emulator
 
-
+## Wireframe
+<img width="2816" height="1536" alt="wireframe" src="https://github.com/user-attachments/assets/bd69af6e-327d-4665-92da-cc3183aaaac0" />
