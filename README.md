@@ -17,3 +17,5 @@ Student ID: 22299319
 1. Clone repo
 2. Add Google Maps API Key in AndroidManifest
 3. Run on Emulator
+
+
