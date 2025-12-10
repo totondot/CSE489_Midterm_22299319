@@ -72,4 +72,5 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.9.1")
+    implementation("org.osmdroid:osmdroid-android:6.1.16")
 }

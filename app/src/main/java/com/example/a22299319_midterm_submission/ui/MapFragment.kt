@@ -1,53 +1,51 @@
 package com.example.a22299319_midterm_submission.ui
 
 import android.os.Bundle
+import android.preference.PreferenceManager
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
-import com.example.a22299319_midterm_submission.R
 import com.example.a22299319_midterm_submission.api.ApiService
 import com.example.a22299319_midterm_submission.api.RetrofitClient
 import com.example.a22299319_midterm_submission.databinding.FragmentMapBinding
 import com.example.a22299319_midterm_submission.models.Landmark
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.OnMapReadyCallback
-import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MarkerOptions
+import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.overlay.Marker
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 
-class MapFragment : Fragment(), OnMapReadyCallback {
+class MapFragment : Fragment() {
 
     private var _binding: FragmentMapBinding? = null
     private val binding get() = _binding!!
-    private lateinit var mMap: GoogleMap
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
+        // 1. Initialize OSMDroid Configuration (Required!)
+        Configuration.getInstance().load(requireContext(), PreferenceManager.getDefaultSharedPreferences(requireContext()))
+
         _binding = FragmentMapBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        // Find the map fragment inside this fragment
-        val mapFragment = childFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
-        mapFragment.getMapAsync(this)
-    }
 
-    override fun onMapReady(googleMap: GoogleMap) {
-        mMap = googleMap
+        // 2. Setup Map Settings
+        binding.map.setTileSource(TileSourceFactory.MAPNIK) // Standard OSM look
+        binding.map.setMultiTouchControls(true)             // Enable zoom gestures
 
-        // Default center: Bangladesh
-        val bangladesh = LatLng(23.6850, 90.3563)
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(bangladesh, 7f))
+        // 3. Set Default Position (Bangladesh)
+        val startPoint = GeoPoint(23.6850, 90.3563)
+        binding.map.controller.setZoom(7.0)
+        binding.map.controller.setCenter(startPoint)
 
         loadLandmarksOnMap()
     }
@@ -58,21 +56,52 @@ class MapFragment : Fragment(), OnMapReadyCallback {
 
         api.getLandmarks().enqueue(object : Callback<List<Landmark>> {
             override fun onResponse(call: Call<List<Landmark>>, response: Response<List<Landmark>>) {
+                // Check if fragment is valid
+                if (_binding == null) return
+
                 binding.progressBarMap.visibility = View.GONE
                 if (response.isSuccessful && response.body() != null) {
                     val landmarks = response.body()!!
+
+                    // Clear old markers
+                    binding.map.overlays.clear()
+
                     for (item in landmarks) {
-                        val pos = LatLng(item.lat, item.lon)
-                        mMap.addMarker(MarkerOptions().position(pos).title(item.title))
+                        // Create Marker
+                        val marker = Marker(binding.map)
+                        marker.position = GeoPoint(item.lat, item.lon)
+                        marker.title = item.title
+                        marker.snippet = "Lat: ${item.lat}, Lon: ${item.lon}"
+
+                        // Set Icon (Optional, uses default if skipped)
+                        marker.icon = resources.getDrawable(org.osmdroid.library.R.drawable.marker_default)
+
+                        // Add to map
+                        binding.map.overlays.add(marker)
                     }
+                    // Refresh map to show markers
+                    binding.map.invalidate()
                 }
             }
 
             override fun onFailure(call: Call<List<Landmark>>, t: Throwable) {
-                binding.progressBarMap.visibility = View.GONE
-                Toast.makeText(context, "Map Error: ${t.message}", Toast.LENGTH_SHORT).show()
+                if (_binding != null) {
+                    binding.progressBarMap.visibility = View.GONE
+                    Toast.makeText(context, "Map Error: ${t.message}", Toast.LENGTH_SHORT).show()
+                }
             }
         })
+    }
+
+    // OSM requires handling lifecycle
+    override fun onResume() {
+        super.onResume()
+        binding.map.onResume()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        binding.map.onPause()
     }
 
     override fun onDestroyView() {
