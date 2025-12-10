@@ -1,9 +1,12 @@
 package com.example.a22299319_midterm_submission.ui
 
 import android.os.Bundle
+import android.text.InputType
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
@@ -16,7 +19,7 @@ import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 
-class ListFragment : Fragment() {
+class ListFragment : Fragment() { // <--- CLASS STARTS HERE
 
     private var _binding: FragmentListBinding? = null
     private val binding get() = _binding!!
@@ -33,15 +36,15 @@ class ListFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Setup RecyclerView with BOTH Click (Toast) and LongClick (Delete)
+        // Setup RecyclerView
         adapter = LandmarkAdapter(
             emptyList(),
             onClick = { landmark ->
-                // Simple click shows the title
-                Toast.makeText(requireContext(), "Clicked: ${landmark.title}", Toast.LENGTH_SHORT).show()
+                // Short Click -> Open Update Dialog
+                showUpdateDialog(landmark)
             },
             onLongClick = { landmark ->
-                // Long click opens the delete dialog
+                // Long Click -> Delete
                 showDeleteDialog(landmark)
             }
         )
@@ -57,12 +60,9 @@ class ListFragment : Fragment() {
         binding.tvError.visibility = View.GONE
 
         val api = RetrofitClient.instance.create(ApiService::class.java)
-
         api.getLandmarks().enqueue(object : Callback<List<Landmark>> {
             override fun onResponse(call: Call<List<Landmark>>, response: Response<List<Landmark>>) {
-                // Check if fragment is still attached to avoid crashes
                 if (!isAdded) return
-
                 binding.progressBar.visibility = View.GONE
                 if (response.isSuccessful && response.body() != null) {
                     adapter.updateList(response.body()!!)
@@ -81,7 +81,7 @@ class ListFragment : Fragment() {
         })
     }
 
-    // --- NEW: Delete Dialog ---
+    // --- Delete Dialog ---
     private fun showDeleteDialog(landmark: Landmark) {
         AlertDialog.Builder(requireContext())
             .setTitle("Delete Landmark")
@@ -93,13 +93,11 @@ class ListFragment : Fragment() {
             .show()
     }
 
-    // --- NEW: Delete API Call ---
+    // --- Delete API Call ---
     private fun deleteLandmark(landmark: Landmark) {
-        // Safely convert ID to Integer (handles cases where ID might be string or double in JSON)
         val idInt = landmark.id.toString().toDoubleOrNull()?.toInt()
-
         if (idInt == null) {
-            Toast.makeText(context, "Invalid ID, cannot delete", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Invalid ID", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -107,21 +105,76 @@ class ListFragment : Fragment() {
         api.deleteLandmark(idInt).enqueue(object : Callback<Void> {
             override fun onResponse(call: Call<Void>, response: Response<Void>) {
                 if (response.isSuccessful) {
-                    Toast.makeText(context, "Deleted Successfully", Toast.LENGTH_SHORT).show()
-                    loadLandmarks() // Refresh the list to remove the item
+                    Toast.makeText(context, "Deleted", Toast.LENGTH_SHORT).show()
+                    loadLandmarks()
                 } else {
-                    Toast.makeText(context, "Delete Failed: ${response.code()}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Delete Failed", Toast.LENGTH_SHORT).show()
                 }
             }
-
             override fun onFailure(call: Call<Void>, t: Throwable) {
                 Toast.makeText(context, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
             }
         })
     }
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
+    // --- Update Dialog ---
+    private fun showUpdateDialog(landmark: Landmark) {
+        val context = requireContext()
+        val layout = LinearLayout(context)
+        layout.orientation = LinearLayout.VERTICAL
+        layout.setPadding(50, 40, 50, 10)
+
+        val inputTitle = EditText(context)
+        inputTitle.hint = "Title"
+        inputTitle.setText(landmark.title)
+        layout.addView(inputTitle)
+
+        val inputLat = EditText(context)
+        inputLat.hint = "Latitude"
+        inputLat.setText(landmark.lat.toString())
+        inputLat.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+        layout.addView(inputLat)
+
+        val inputLon = EditText(context)
+        inputLon.hint = "Longitude"
+        inputLon.setText(landmark.lon.toString())
+        inputLon.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+        layout.addView(inputLon)
+
+        AlertDialog.Builder(context)
+            .setTitle("Update Landmark")
+            .setView(layout)
+            .setPositiveButton("Update") { _, _ ->
+                val newTitle = inputTitle.text.toString()
+                val newLat = inputLat.text.toString().toDoubleOrNull() ?: landmark.lat
+                val newLon = inputLon.text.toString().toDoubleOrNull() ?: landmark.lon
+
+                // Safe ID conversion
+                val idInt = landmark.id.toString().toDoubleOrNull()?.toInt()
+                if (idInt != null) {
+                    updateLandmark(idInt, newTitle, newLat, newLon)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
+
+    // --- Update API Call ---
+    private fun updateLandmark(id: Int, title: String, lat: Double, lon: Double) {
+        val api = RetrofitClient.instance.create(ApiService::class.java)
+        api.updateLandmark(id, title, lat, lon).enqueue(object : Callback<Any> {
+            override fun onResponse(call: Call<Any>, response: Response<Any>) {
+                if (response.isSuccessful) {
+                    Toast.makeText(context, "Updated!", Toast.LENGTH_SHORT).show()
+                    loadLandmarks()
+                } else {
+                    Toast.makeText(context, "Failed: ${response.code()}", Toast.LENGTH_SHORT).show()
+                }
+            }
+            override fun onFailure(call: Call<Any>, t: Throwable) {
+                Toast.makeText(context, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
+            }
+        })
+    }
+
 }

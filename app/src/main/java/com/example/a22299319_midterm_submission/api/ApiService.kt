@@ -24,4 +24,13 @@ interface ApiService {
     // 3. DELETE Request to remove a landmark
     @DELETE("api.php")
     fun deleteLandmark(@Query("id") id: Int): Call<Void>
+
+    @retrofit2.http.FormUrlEncoded
+    @retrofit2.http.PUT("api.php")
+    fun updateLandmark(
+        @retrofit2.http.Field("id") id: Int,
+        @retrofit2.http.Field("title") title: String,
+        @retrofit2.http.Field("lat") lat: Double,
+        @retrofit2.http.Field("lon") lon: Double
+    ): Call<Any>
 }
