@@ -10,7 +10,8 @@ import com.example.a22299319_midterm_submission.R
 
 class LandmarkAdapter(
     private var landmarks: List<Landmark>,
-    private val onClick: (Landmark) -> Unit
+    private val onClick: (Landmark) -> Unit,
+    private val onLongClick: (Landmark) -> Unit
 ) : RecyclerView.Adapter<LandmarkAdapter.ViewHolder>() {
 
     class ViewHolder(val binding: ItemLandmarkBinding) : RecyclerView.ViewHolder(binding.root)
@@ -36,6 +37,14 @@ class LandmarkAdapter(
             .into(holder.binding.ivLandmark)
 
         holder.itemView.setOnClickListener { onClick(item) }
+        // Normal Click
+        holder.itemView.setOnClickListener { onClick(item) }
+
+        // Long Click (Trigger Delete)
+        holder.itemView.setOnLongClickListener {
+            onLongClick(item)
+            true
+        }
     }
 
     override fun getItemCount() = landmarks.size
